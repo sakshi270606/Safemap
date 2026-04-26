@@ -50,7 +50,10 @@ open index.html
 
 
 ## 🌐 Live Demo
-
+https://drive.google.com/file/d/1ouKCPPgrrHttCCciUlSbiiaGDhysZyZO/view?usp=sharing
+and
+pitch video
+https://drive.google.com/file/d/1O9WPDJ2WzSg-wFLSyw3elmspYuPBJ4OC/view?usp=sharing
 ## 👩 Who Benefits
 
 - 👩‍🎓 College Students — safe navigation to/from campus
