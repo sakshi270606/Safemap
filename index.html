@@ -1,0 +1,609 @@
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --pink: #E91E8C;
+    --pink-light: #FCE4F2;
+    --red: #EF4444;
+    --yellow: #F59E0B;
+    --green: #10B981;
+    --dark: #1a1a2e;
+    --card-bg: var(--color-background-primary);
+    --border: var(--color-border-tertiary);
+  }
+  body { font-family: var(--font-sans); }
+  #safemap-root { min-height: 680px; display: flex; flex-direction: column; position: relative; }
+
+  .sm-header {
+    background: var(--dark);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+  }
+  .sm-logo { display: flex; align-items: center; gap: 10px; }
+  .sm-logo-icon { width:32px;height:32px;border-radius:50%;background:var(--pink);display:flex;align-items:center;justify-content:center;font-size:16px; }
+  .sm-logo-text { color:#fff;font-size:18px;font-weight:500;letter-spacing:-0.3px; }
+  .sm-logo-sub { color:rgba(255,255,255,0.5);font-size:11px;margin-left:4px; }
+  .sm-anon-badge { background:rgba(16,185,129,0.2);color:#10B981;font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid rgba(16,185,129,0.3); }
+
+  .sm-body { display:flex;flex:1;min-height:560px; }
+  #map { flex:1;min-height:560px;z-index:1; }
+
+  .sm-sidebar {
+    width:300px;min-width:300px;
+    background:var(--card-bg);
+    border-left:0.5px solid var(--border);
+    display:flex;flex-direction:column;
+    overflow-y:auto;max-height:560px;
+  }
+
+  .sm-tab-bar { display:flex;border-bottom:0.5px solid var(--border); }
+  .sm-tab {
+    flex:1;padding:10px 6px;text-align:center;font-size:12px;
+    color:var(--color-text-secondary);cursor:pointer;border:none;
+    background:transparent;border-bottom:2px solid transparent;transition:color 0.2s;
+  }
+  .sm-tab.active { color:var(--pink);border-bottom-color:var(--pink);font-weight:500; }
+
+  .sm-panel { padding:16px;display:none;flex-direction:column;gap:12px; }
+  .sm-panel.active { display:flex; }
+
+  .sm-section-label {
+    font-size:11px;font-weight:500;color:var(--color-text-secondary);
+    text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;
+  }
+
+  .sm-form-group { display:flex;flex-direction:column;gap:6px; }
+
+  .sm-select, .sm-textarea, .sm-input {
+    width:100%;padding:8px 10px;
+    border:0.5px solid var(--border);
+    border-radius:var(--border-radius-md);
+    background:var(--color-background-secondary);
+    color:var(--color-text-primary);font-size:13px;font-family:var(--font-sans);
+  }
+  .sm-textarea { resize:none;height:70px; }
+
+  .sm-location-btn {
+    display:flex;align-items:center;gap:8px;padding:8px 12px;
+    border:0.5px solid var(--border);border-radius:var(--border-radius-md);
+    background:var(--color-background-secondary);color:var(--color-text-secondary);
+    font-size:12px;cursor:pointer;width:100%;text-align:left;transition:all 0.2s;
+  }
+  .sm-location-btn:hover { border-color:rgba(233,30,140,0.3); }
+  .sm-location-btn.set { border-color:rgba(233,30,140,0.4);color:var(--pink);background:var(--pink-light); }
+  .sm-dot { width:8px;height:8px;border-radius:50%;background:var(--color-text-secondary);flex-shrink:0; }
+  .sm-dot.set { background:var(--pink); }
+
+  /* Pin row with clear button */
+  .sm-pin-row { display:flex;gap:6px;align-items:stretch; }
+  .sm-pin-row .sm-location-btn { flex:1; }
+  .sm-clear-pin-btn {
+    padding:8px 10px;border:0.5px solid var(--border);border-radius:var(--border-radius-md);
+    background:var(--color-background-secondary);color:var(--color-text-secondary);
+    font-size:12px;cursor:pointer;white-space:nowrap;transition:all 0.2s;display:none;
+  }
+  .sm-clear-pin-btn:hover { border-color:#EF4444;color:#EF4444;background:#fee2e2; }
+  .sm-clear-pin-btn.visible { display:block; }
+
+  .sm-loc-confirmed {
+    display:none;font-size:11px;color:var(--pink);margin-top:2px;
+    padding:6px 10px;background:var(--pink-light);border-radius:8px;
+    border:1px solid rgba(233,30,140,0.25);
+    justify-content:space-between;align-items:center;
+  }
+  .sm-loc-confirmed.visible { display:flex; }
+
+  .sm-submit-btn {
+    padding:10px;background:var(--pink);color:#fff;border:none;
+    border-radius:var(--border-radius-md);font-size:14px;font-weight:500;
+    cursor:pointer;width:100%;transition:opacity 0.2s;
+  }
+  .sm-submit-btn:hover { opacity:0.85; }
+
+  .sm-cancel-btn {
+    padding:8px;background:transparent;color:var(--color-text-secondary);
+    border:0.5px solid var(--border);border-radius:var(--border-radius-md);
+    font-size:13px;cursor:pointer;width:100%;transition:all 0.2s;
+  }
+  .sm-cancel-btn:hover { border-color:#EF4444;color:#EF4444; }
+
+  .sm-anon-note {
+    font-size:11px;color:var(--color-text-secondary);text-align:center;
+    padding:8px;border-radius:var(--border-radius-md);
+    background:var(--color-background-secondary);border:0.5px solid var(--border);
+  }
+
+  .sm-legend { display:flex;flex-direction:column;gap:8px; }
+  .sm-legend-row { display:flex;align-items:center;gap:10px;font-size:13px; }
+  .sm-legend-dot { width:14px;height:14px;border-radius:50%;flex-shrink:0; }
+
+  .sm-stats-grid { display:grid;grid-template-columns:1fr 1fr;gap:8px; }
+  .sm-stat-card { background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px;text-align:center; }
+  .sm-stat-num { font-size:22px;font-weight:500; }
+  .sm-stat-label { font-size:11px;color:var(--color-text-secondary);margin-top:2px; }
+
+  .sm-feed { display:flex;flex-direction:column;gap:8px; }
+  .sm-feed-item { padding:10px;border-radius:var(--border-radius-md);border:0.5px solid var(--border);background:var(--color-background-secondary); }
+  .sm-feed-top { display:flex;align-items:center;gap:6px;margin-bottom:4px; }
+  .sm-severity { font-size:10px;padding:2px 8px;border-radius:10px;font-weight:500; }
+  .sev-high { background:#fee2e2;color:#991b1b; }
+  .sev-med { background:#fef9c3;color:#854d0e; }
+  .sev-low { background:#d1fae5;color:#065f46; }
+  .sm-feed-time { font-size:11px;color:var(--color-text-secondary);margin-left:auto; }
+  .sm-feed-title { font-size:13px;font-weight:500; }
+  .sm-feed-loc { font-size:11px;color:var(--color-text-secondary);margin-top:2px; }
+
+  .sm-toast {
+    position:absolute;bottom:20px;left:50%;
+    transform:translateX(-50%) translateY(80px);
+    background:#1a1a2e;color:#fff;padding:10px 20px;
+    border-radius:20px;font-size:13px;z-index:9999;
+    transition:transform 0.3s;white-space:nowrap;
+  }
+  .sm-toast.show { transform:translateX(-50%) translateY(0); }
+
+  .sm-map-instruction {
+    position:absolute;top:54px;left:10px;z-index:500;
+    background:rgba(26,26,46,0.9);color:#fff;font-size:12px;
+    padding:6px 12px;border-radius:20px;pointer-events:none;display:none;
+  }
+  .sm-map-instruction.visible { display:block; }
+
+  /* ── MODAL OVERLAY ── */
+  .sm-modal-overlay {
+    position:absolute;inset:0;z-index:9000;
+    background:rgba(0,0,0,0.45);backdrop-filter:blur(2px);
+    display:none;align-items:center;justify-content:center;
+    border-radius:inherit;
+  }
+  .sm-modal-overlay.visible { display:flex; }
+  .sm-modal {
+    background:var(--color-background-primary);
+    border-radius:16px;padding:24px;width:260px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.3);
+    display:flex;flex-direction:column;gap:16px;
+    animation:modalIn 0.2s ease;
+  }
+  @keyframes modalIn { from{transform:scale(0.9);opacity:0} to{transform:scale(1);opacity:1} }
+  .sm-modal-icon { font-size:32px;text-align:center; }
+  .sm-modal-title { font-size:16px;font-weight:600;text-align:center;color:var(--color-text-primary); }
+  .sm-modal-body { font-size:13px;color:var(--color-text-secondary);text-align:center;line-height:1.5; }
+  .sm-modal-actions { display:flex;flex-direction:column;gap:8px; }
+  .sm-modal-btn-primary {
+    padding:10px;background:var(--pink);color:#fff;border:none;
+    border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;transition:opacity 0.2s;
+  }
+  .sm-modal-btn-primary:hover { opacity:0.85; }
+  .sm-modal-btn-secondary {
+    padding:10px;background:transparent;color:var(--color-text-secondary);
+    border:0.5px solid var(--border);border-radius:10px;font-size:13px;cursor:pointer;transition:all 0.2s;
+  }
+  .sm-modal-btn-secondary:hover { border-color:#EF4444;color:#EF4444; }
+  .sm-modal-btn-danger {
+    padding:10px;background:#fee2e2;color:#991b1b;border:none;
+    border-radius:10px;font-size:13px;font-weight:500;cursor:pointer;transition:opacity 0.2s;
+  }
+  .sm-modal-btn-danger:hover { opacity:0.8; }
+</style>
+
+<div id="safemap-root">
+  <div class="sm-header">
+    <div class="sm-logo">
+      <div class="sm-logo-icon">🛡️</div>
+      <span class="sm-logo-text">SafeMap <span class="sm-logo-sub">by EliteHer</span></span>
+    </div>
+    <span class="sm-anon-badge">100% Anonymous</span>
+  </div>
+
+  <div class="sm-body">
+    <div id="map"></div>
+
+    <div class="sm-sidebar">
+      <div class="sm-tab-bar">
+        <button class="sm-tab active" onclick="showTab('report')">Report</button>
+        <button class="sm-tab" onclick="showTab('feed')">Live Feed</button>
+        <button class="sm-tab" onclick="showTab('stats')">Stats</button>
+      </div>
+
+      <div id="tab-report" class="sm-panel active">
+        <div class="sm-section-label">Anonymous Incident Report</div>
+
+        <div class="sm-form-group">
+          <span class="sm-section-label">Incident type</span>
+          <select class="sm-select" id="incident-type">
+            <option value="">-- Select incident --</option>
+            <option value="harassment">Verbal Harassment</option>
+            <option value="stalking">Stalking / Following</option>
+            <option value="assault">Physical Assault</option>
+            <option value="unsafe">Unsafe Area / Poor Lighting</option>
+            <option value="catcalling">Catcalling</option>
+            <option value="groping">Groping / Molestation</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+
+        <div class="sm-form-group">
+          <span class="sm-section-label">Time of incident</span>
+          <select class="sm-select" id="incident-time">
+            <option value="12am-1am">12:00am – 1:00am (midnight)</option>
+            <option value="1am-2am">1:00am – 2:00am (late night)</option>
+            <option value="2am-3am">2:00am – 3:00am (late night)</option>
+            <option value="3am-4am">3:00am – 4:00am (late night)</option>
+            <option value="4am-5am">4:00am – 5:00am (early morning)</option>
+            <option value="5am-6am">5:00am – 6:00am (early morning)</option>
+            <option value="6am-7am">6:00am – 7:00am (morning)</option>
+            <option value="7am-8am">7:00am – 8:00am (morning)</option>
+            <option value="8am-9am">8:00am – 9:00am (morning)</option>
+            <option value="9am-10am">9:00am – 10:00am (morning)</option>
+            <option value="10am-11am">10:00am – 11:00am (morning)</option>
+            <option value="11am-12pm">11:00am – 12:00pm (noon)</option>
+            <option value="12pm-1pm">12:00pm – 1:00pm (afternoon)</option>
+            <option value="1pm-2pm">1:00pm – 2:00pm (afternoon)</option>
+            <option value="2pm-3pm">2:00pm – 3:00pm (afternoon)</option>
+            <option value="3pm-4pm">3:00pm – 4:00pm (afternoon)</option>
+            <option value="4pm-5pm">4:00pm – 5:00pm (afternoon)</option>
+            <option value="5pm-6pm">5:00pm – 6:00pm (evening)</option>
+            <option value="6pm-7pm">6:00pm – 7:00pm (evening)</option>
+            <option value="7pm-8pm">7:00pm – 8:00pm (evening)</option>
+            <option value="8pm-9pm">8:00pm – 9:00pm (evening)</option>
+            <option value="9pm-10pm">9:00pm – 10:00pm (evening)</option>
+            <option value="10pm-11pm">10:00pm – 11:00pm (night)</option>
+            <option value="11pm-12am">11:00pm – 12:00am (night)</option>
+          </select>
+        </div>
+
+        <div class="sm-form-group">
+          <span class="sm-section-label">Incident location</span>
+          <button class="sm-location-btn" id="loc-btn" onclick="useCurrentLocation()">
+            <div class="sm-dot" id="loc-dot"></div>
+            <span id="loc-text">📍 Use my current location</span>
+          </button>
+
+          <div class="sm-pin-row">
+            <button class="sm-location-btn" id="pin-btn" onclick="startPinMode()" style="justify-content:center;">
+              <span id="pin-btn-text">🗺️ Pin location on map</span>
+            </button>
+            <button class="sm-clear-pin-btn" id="clear-pin-btn" onclick="showClearPinModal()" title="Remove pin">✕ Clear</button>
+          </div>
+
+          <div class="sm-loc-confirmed" id="loc-confirmed">
+            <span>✅ Location pinned on map</span>
+            <span style="font-size:10px;opacity:0.7;cursor:pointer;" onclick="showClearPinModal()">change?</span>
+          </div>
+        </div>
+
+        <div class="sm-form-group">
+          <span class="sm-section-label">Details (optional)</span>
+          <textarea class="sm-textarea" id="incident-desc" placeholder="Brief description... no personal info needed"></textarea>
+        </div>
+
+        <button class="sm-submit-btn" onclick="showSubmitConfirm()">Submit Report Anonymously</button>
+        <button class="sm-cancel-btn" onclick="showCancelModal()">✕ Cancel &amp; clear form</button>
+
+        <div class="sm-anon-note">🔒 No login. No name. No phone. Zero identity stored.</div>
+
+        <div class="sm-legend">
+          <div class="sm-section-label" style="margin-top:4px;">Map legend</div>
+          <div class="sm-legend-row"><div class="sm-legend-dot" style="background:#EF4444;"></div><span>High risk zone</span></div>
+          <div class="sm-legend-row"><div class="sm-legend-dot" style="background:#F59E0B;"></div><span>Medium risk zone</span></div>
+          <div class="sm-legend-row"><div class="sm-legend-dot" style="background:#10B981;"></div><span>Safe / low reports</span></div>
+        </div>
+      </div>
+
+      <div id="tab-feed" class="sm-panel">
+        <div class="sm-section-label">Recent reports (live)</div>
+        <div class="sm-feed" id="feed-list"></div>
+      </div>
+
+      <div id="tab-stats" class="sm-panel">
+        <div class="sm-section-label">City safety overview</div>
+        <div class="sm-stats-grid">
+          <div class="sm-stat-card">
+            <div class="sm-stat-num" id="stat-total" style="color:var(--pink);">0</div>
+            <div class="sm-stat-label">Total reports</div>
+          </div>
+          <div class="sm-stat-card">
+            <div class="sm-stat-num" id="stat-high" style="color:#EF4444;">0</div>
+            <div class="sm-stat-label">High risk areas</div>
+          </div>
+          <div class="sm-stat-card">
+            <div class="sm-stat-num" id="stat-today" style="color:#F59E0B;">0</div>
+            <div class="sm-stat-label">Reports today</div>
+          </div>
+          <div class="sm-stat-card">
+            <div class="sm-stat-num" id="stat-users" style="color:#10B981;">100%</div>
+            <div class="sm-stat-label">Anonymous</div>
+          </div>
+        </div>
+        <div class="sm-section-label" style="margin-top:8px;">Most reported types</div>
+        <div id="type-breakdown" style="display:flex;flex-direction:column;gap:8px;"></div>
+        <div style="padding:12px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);border:0.5px solid var(--border);margin-top:4px;">
+          <div style="font-size:12px;font-weight:500;margin-bottom:4px;">AI Risk Prediction</div>
+          <div style="font-size:12px;color:var(--color-text-secondary);">Based on report patterns, the <strong>eastern zones</strong> show elevated risk after 8pm. Avoid: Station Road, Old Market area.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sm-toast" id="toast"></div>
+  <div class="sm-map-instruction" id="map-instruction">📍 Click on map to drop your pin — or press Esc to cancel</div>
+
+  <!-- MODAL OVERLAY -->
+  <div class="sm-modal-overlay" id="modal-overlay">
+    <div class="sm-modal" id="modal-box">
+      <div class="sm-modal-icon" id="modal-icon">⚠️</div>
+      <div class="sm-modal-title" id="modal-title">Are you sure?</div>
+      <div class="sm-modal-body" id="modal-body">This will clear your report.</div>
+      <div class="sm-modal-actions" id="modal-actions"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let map, heatLayer, pinnedMarker;
+let selectedLat = null, selectedLng = null;
+let reports = [];
+let pinningMode = false;
+
+const INCIDENT_LABELS = {
+  harassment:'Verbal Harassment', stalking:'Stalking / Following',
+  assault:'Physical Assault', unsafe:'Unsafe Area',
+  catcalling:'Catcalling', groping:'Groping / Molestation', other:'Other'
+};
+const SEVERITY = {
+  assault:'high', groping:'high', stalking:'high',
+  harassment:'med', catcalling:'med', unsafe:'low', other:'low'
+};
+const MUMBAI_CENTER = [19.076, 72.8777];
+const SEED_REPORTS = [
+  {lat:19.0760,lng:72.8777,type:'harassment',time:'10pm-11pm',area:'CST Station',minsAgo:12},
+  {lat:19.0820,lng:72.8856,type:'stalking',time:'11pm-12am',area:'Dadar',minsAgo:34},
+  {lat:19.0544,lng:72.8402,type:'groping',time:'8pm-9pm',area:'Bandra West',minsAgo:55},
+  {lat:19.1136,lng:72.8697,type:'unsafe',time:'9pm-10pm',area:'Andheri',minsAgo:78},
+  {lat:19.0330,lng:72.8654,type:'catcalling',time:'7pm-8pm',area:'Dharavi',minsAgo:90},
+  {lat:19.0607,lng:72.8358,type:'assault',time:'11pm-12am',area:'Kurla',minsAgo:120},
+  {lat:19.1724,lng:72.9479,type:'harassment',time:'2pm-3pm',area:'Mulund',minsAgo:145},
+  {lat:19.0176,lng:72.8562,type:'stalking',time:'6pm-7pm',area:'Chembur',minsAgo:160},
+  {lat:19.0883,lng:72.8275,type:'unsafe',time:'10pm-11pm',area:'Juhu Beach',minsAgo:200},
+  {lat:19.1200,lng:72.8700,type:'catcalling',time:'8am-9am',area:'Goregaon',minsAgo:250},
+];
+
+// ── MODAL SYSTEM ──
+function showModal({ icon, title, body, actions }) {
+  document.getElementById('modal-icon').textContent = icon;
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').textContent = body;
+  const actionsEl = document.getElementById('modal-actions');
+  actionsEl.innerHTML = '';
+  actions.forEach(a => {
+    const btn = document.createElement('button');
+    btn.textContent = a.label;
+    btn.className = a.style === 'primary' ? 'sm-modal-btn-primary'
+                  : a.style === 'danger'   ? 'sm-modal-btn-danger'
+                  : 'sm-modal-btn-secondary';
+    btn.onclick = () => { hideModal(); a.action(); };
+    actionsEl.appendChild(btn);
+  });
+  document.getElementById('modal-overlay').classList.add('visible');
+}
+function hideModal() {
+  document.getElementById('modal-overlay').classList.remove('visible');
+}
+
+function showClearPinModal() {
+  showModal({
+    icon: '📍',
+    title: 'Remove this pin?',
+    body: 'The pinned location will be cleared. You can re-pin anywhere on the map.',
+    actions: [
+      { label: '✕ Yes, remove pin', style: 'danger', action: clearPin },
+      { label: '← Go back', style: 'secondary', action: () => {} },
+    ]
+  });
+}
+
+function showCancelModal() {
+  showModal({
+    icon: '🗑️',
+    title: 'Cancel this report?',
+    body: 'All your entered details and the pinned location will be cleared. You will go back to a fresh form.',
+    actions: [
+      { label: '✕ Yes, cancel report', style: 'danger', action: resetForm },
+      { label: '← Keep editing', style: 'secondary', action: () => {} },
+    ]
+  });
+}
+
+function showSubmitConfirm() {
+  const type = document.getElementById('incident-type').value;
+  const time = document.getElementById('incident-time').value;
+  if (!type) { showToast('Please select an incident type'); return; }
+  if (!selectedLat) {
+    showToast('Please pin a location on the map first');
+    startPinMode();
+    return;
+  }
+  showModal({
+    icon: '🛡️',
+    title: 'Submit this report?',
+    body: `Incident: ${INCIDENT_LABELS[type] || type}\nTime: ${time}\n\nThis will be submitted 100% anonymously — no identity stored.`,
+    actions: [
+      { label: '✅ Yes, submit anonymously', style: 'primary', action: submitReport },
+      { label: '← Go back & edit', style: 'secondary', action: () => {} },
+      { label: '✕ Cancel report', style: 'danger', action: resetForm },
+    ]
+  });
+}
+
+// ── MAP INIT ──
+function initMap() {
+  map = L.map('map', {zoomControl:true}).setView(MUMBAI_CENTER, 12);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution:'© OpenStreetMap contributors © CARTO',
+    subdomains:'abcd', maxZoom:19
+  }).addTo(map);
+
+  SEED_REPORTS.forEach(r => reports.push(r));
+  renderHeatmap(); renderFeed(); renderStats();
+
+  map.on('click', function(e) {
+    selectedLat = e.latlng.lat;
+    selectedLng = e.latlng.lng;
+    dropPin(selectedLat, selectedLng);
+    pinningMode = false;
+    document.getElementById('map-instruction').classList.remove('visible');
+    showToast('📍 Incident location pinned!');
+  });
+
+  // Esc cancels pin mode
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && pinningMode) {
+      pinningMode = false;
+      document.getElementById('map-instruction').classList.remove('visible');
+      document.getElementById('pin-btn-text').textContent = '🗺️ Pin location on map';
+      showToast('Pin mode cancelled');
+    }
+  });
+}
+
+function dropPin(lat, lng) {
+  if (pinnedMarker) map.removeLayer(pinnedMarker);
+  const pinIcon = L.divIcon({
+    html: `<div style="width:22px;height:22px;background:#E91E8C;border:3px solid white;border-radius:50%;box-shadow:0 3px 12px rgba(233,30,140,0.7);"></div>`,
+    iconSize:[22,22], iconAnchor:[11,11], className:''
+  });
+  pinnedMarker = L.marker([lat, lng], {icon: pinIcon}).addTo(map);
+  // update sidebar
+  document.getElementById('loc-btn').classList.add('set');
+  document.getElementById('loc-dot').classList.add('set');
+  document.getElementById('loc-text').textContent = '✅ Location set';
+  document.getElementById('pin-btn').classList.add('set');
+  document.getElementById('pin-btn-text').textContent = '✅ Pinned — click to repin';
+  document.getElementById('loc-confirmed').classList.add('visible');
+  document.getElementById('clear-pin-btn').classList.add('visible');
+}
+
+function clearPin() {
+  if (pinnedMarker) { map.removeLayer(pinnedMarker); pinnedMarker = null; }
+  selectedLat = null; selectedLng = null;
+  document.getElementById('loc-btn').classList.remove('set');
+  document.getElementById('loc-dot').classList.remove('set');
+  document.getElementById('loc-text').textContent = '📍 Use my current location';
+  document.getElementById('pin-btn').classList.remove('set');
+  document.getElementById('pin-btn-text').textContent = '🗺️ Pin location on map';
+  document.getElementById('loc-confirmed').classList.remove('visible');
+  document.getElementById('clear-pin-btn').classList.remove('visible');
+  showToast('Pin cleared — tap the map or use location to re-pin');
+}
+
+function startPinMode() {
+  pinningMode = true;
+  const instr = document.getElementById('map-instruction');
+  instr.style.display = 'block';
+  instr.classList.add('visible');
+  document.getElementById('pin-btn-text').textContent = '🖱️ Click anywhere on map now…';
+  showToast('Click on the map to drop your pin (Esc to cancel)');
+}
+
+function useCurrentLocation() {
+  if (navigator.geolocation) {
+    showToast('Getting your location…');
+    navigator.geolocation.getCurrentPosition(pos => {
+      selectedLat = pos.coords.latitude;
+      selectedLng = pos.coords.longitude;
+      map.setView([selectedLat, selectedLng], 15);
+      dropPin(selectedLat, selectedLng);
+      showToast('✅ Current location pinned!');
+    }, () => {
+      startPinMode();
+    });
+  } else {
+    startPinMode();
+  }
+}
+
+function submitReport() {
+  const type = document.getElementById('incident-type').value;
+  const time = document.getElementById('incident-time').value;
+  const areaNames = ['Near station','Market area','Residential zone','Bus stop','Park area'];
+  const newReport = {
+    lat: selectedLat + (Math.random()-0.5)*0.002,
+    lng: selectedLng + (Math.random()-0.5)*0.002,
+    type, time,
+    area: areaNames[Math.floor(Math.random()*areaNames.length)],
+    minsAgo: 0
+  };
+  reports.unshift(newReport);
+  renderHeatmap(); renderFeed(); renderStats();
+  resetForm();
+  showToast('🛡️ Report submitted anonymously! Heatmap updated.');
+}
+
+function resetForm() {
+  document.getElementById('incident-type').value = '';
+  document.getElementById('incident-desc').value = '';
+  clearPin();
+}
+
+// ── RENDER ──
+function renderHeatmap() {
+  if (heatLayer) map.removeLayer(heatLayer);
+  const pts = reports.map(r => [r.lat, r.lng, SEVERITY[r.type]==='high'?1:SEVERITY[r.type]==='med'?0.6:0.3]);
+  heatLayer = L.heatLayer(pts, {radius:30,blur:20,maxZoom:17,gradient:{0.3:'#10B981',0.6:'#F59E0B',0.9:'#EF4444'}}).addTo(map);
+}
+
+function renderFeed() {
+  const feed = document.getElementById('feed-list');
+  const sorted = [...reports].sort((a,b)=>a.minsAgo-b.minsAgo).slice(0,8);
+  feed.innerHTML = sorted.map(r => `
+    <div class="sm-feed-item">
+      <div class="sm-feed-top">
+        <span class="sm-severity sev-${SEVERITY[r.type]==='high'?'high':SEVERITY[r.type]==='med'?'med':'low'}">${SEVERITY[r.type].toUpperCase()}</span>
+        <span class="sm-feed-time">${r.minsAgo<60?r.minsAgo+'m ago':Math.round(r.minsAgo/60)+'h ago'}</span>
+      </div>
+      <div class="sm-feed-title">${INCIDENT_LABELS[r.type]||r.type}</div>
+      <div class="sm-feed-loc">${r.area} · ${r.time}</div>
+    </div>`).join('');
+}
+
+function renderStats() {
+  document.getElementById('stat-total').textContent = reports.length;
+  document.getElementById('stat-high').textContent = reports.filter(r=>SEVERITY[r.type]==='high').length;
+  document.getElementById('stat-today').textContent = reports.filter(r=>r.minsAgo<180).length;
+  const typeCounts = {};
+  reports.forEach(r => { typeCounts[r.type]=(typeCounts[r.type]||0)+1; });
+  const sorted = Object.entries(typeCounts).sort((a,b)=>b[1]-a[1]).slice(0,4);
+  const max = sorted[0]?.[1]||1;
+  document.getElementById('type-breakdown').innerHTML = sorted.map(([type,count])=>`
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+        <span>${INCIDENT_LABELS[type]||type}</span>
+        <span style="color:var(--color-text-secondary);">${count}</span>
+      </div>
+      <div style="height:5px;border-radius:3px;background:var(--color-background-secondary);">
+        <div style="width:${Math.round(count/max*100)}%;height:5px;border-radius:3px;background:var(--pink);"></div>
+      </div>
+    </div>`).join('');
+}
+
+function showTab(name) {
+  document.querySelectorAll('.sm-tab').forEach((t,i)=>{t.classList.toggle('active',['report','feed','stats'][i]===name);});
+  document.querySelectorAll('.sm-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2800);
+}
+
+window.addEventListener('load', initMap);
+</script>
